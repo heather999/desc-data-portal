@@ -310,7 +310,7 @@ def submit_transfer():
     source_endpoint_id = app.config['DATASET_ENDPOINT_ID']
     source_endpoint_base = app.config['DATASET_ENDPOINT_BASE']
     destination_endpoint_id = browse_endpoint_form['endpoint_id']
-    destination_folder = browse_endpoint_form.get('folder[0]')
+    destination_folder = browse_endpoint_form.get('folder[0]') 
 
     transfer_data = TransferData(transfer_client=transfer,
                                  source_endpoint=source_endpoint_id,
@@ -324,7 +324,7 @@ def submit_transfer():
         if destination_folder:
             dest_path += destination_folder + '/'
 
-        dest_path += ds['name'] + '/'
+        dest_path += 'DC2/' + ds['name'] + '/'
 
         transfer_data.add_item(source_path=source_path,
                                destination_path=dest_path,

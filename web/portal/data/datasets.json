@@ -1,13 +1,19 @@
 [
     {
         "name": "lsstdesc_dc2_truth_match",
-        "id": "546ae886-3c0d-11eb-8fe2-0a34088e79f9",
+        "id": "8479e0fb-3e15-4c13-b8a7-ffe192795007",
         "path": "truth_match"
     },
 
     {
+        "name": "truthTest",
+        "id": "7b50d9a5-3412-4c60-81bb-113ba7f519fa",
+        "path": "lsstdesc-dc2-run2.2i-dr6-wfd/truth_match_dr6_wfd"
+    },
+
+    {
         "name": "lsstdesc_dc2_object_dpdd",
-        "id": "546ae886-3c0d-11eb-8fe2-0a34088e79f9",
+        "id": "11767c28-e6c8-4901-92de-3e3d7502c7d4",
         "path": "object_dpdd"
     }
 
