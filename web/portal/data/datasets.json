@@ -1,20 +1,14 @@
 [
     {
-        "name": "lsstdesc_dc2_truth_match",
-        "id": "8479e0fb-3e15-4c13-b8a7-ffe192795007",
-        "path": "truth_match"
-    },
-
-    {
-        "name": "truthTest",
+        "name": "DC2 Truth Match dr6 v1",
         "id": "7b50d9a5-3412-4c60-81bb-113ba7f519fa",
-        "path": "lsstdesc-dc2-run2.2i-dr6-wfd/truth_match_dr6_wfd"
+        "path": "lsstdesc-dc2-wfd-dr6-v1/truth_match"
     },
 
     {
-        "name": "lsstdesc_dc2_object_dpdd",
+        "name": "DC2 Object DPDD dr6 v1",
         "id": "11767c28-e6c8-4901-92de-3e3d7502c7d4",
-        "path": "object_dpdd"
+        "path": "lsstdesc-dc2-wfd-dr6-v1/object_dpdd"
     }
 
 ]

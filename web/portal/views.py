@@ -324,7 +324,8 @@ def submit_transfer():
         if destination_folder:
             dest_path += destination_folder + '/'
 
-        dest_path += 'DC2/' + ds['name'] + '/'
+        #dest_path += 'lsstdesc-dc2-wfd-dr6-v1/' + ds['name'] + '/'
+        dest_path +=  ds['path'] + '/'
 
         transfer_data.add_item(source_path=source_path,
                                destination_path=dest_path,
