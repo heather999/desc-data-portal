@@ -181,9 +181,10 @@ def authcallback():
         return redirect(url_for('transfer'))
 
 
-@app.route('/browse/dataset/<dataset_id>', methods=['GET'])
+@app.route('/browse', methods=['GET', 'POST'])
+@app.route('/browse/dataset/<dataset_id>', methods=['GET', 'POST'])
 @app.route('/browse/endpoint/<endpoint_id>/<path:endpoint_path>',
-           methods=['GET'])
+           methods=['GET', 'POST'])
 @authenticated
 def browse(dataset_id=None, endpoint_id=None, endpoint_path=None):
     """
@@ -202,51 +203,85 @@ def browse(dataset_id=None, endpoint_id=None, endpoint_path=None):
     template accordingly.
     """
 
-    assert bool(dataset_id) != bool(endpoint_id and endpoint_path)
+    if request.method == 'GET':
+        assert bool(dataset_id) != bool(endpoint_id and endpoint_path)
 
-    if dataset_id:
+        if dataset_id:
+            try:
+                dataset = next(ds for ds in datasets if ds['id'] == dataset_id)
+            except StopIteration:
+                abort(404)
+
+            endpoint_id = app.config['DATASET_ENDPOINT_ID']
+            endpoint_path = app.config['DATASET_ENDPOINT_BASE'] + dataset['path']
+
+        else:
+            endpoint_path = '/' + endpoint_path
+
+        transfer_tokens = session['tokens']['transfer.api.globus.org']
+
+        authorizer = RefreshTokenAuthorizer(
+            transfer_tokens['refresh_token'],
+            load_portal_client(),
+            access_token=transfer_tokens['access_token'],
+            expires_at=transfer_tokens['expires_at_seconds'])
+
+        transfer = TransferClient(authorizer=authorizer)
+
         try:
-            dataset = next(ds for ds in datasets if ds['id'] == dataset_id)
-        except StopIteration:
-            abort(404)
+            transfer.endpoint_autoactivate(endpoint_id)
+            listing = transfer.operation_ls(endpoint_id, path=endpoint_path)
+        except TransferAPIError as err:
+            flash('Error [{}]: {}'.format(err.code, err.message))
+            return redirect(url_for('browse'))
 
-        endpoint_id = app.config['DATASET_ENDPOINT_ID']
-        endpoint_path = app.config['DATASET_ENDPOINT_BASE'] + dataset['path']
+        file_list = [e for e in listing if e['type'] == 'file']
 
-    else:
-        endpoint_path = '/' + endpoint_path
+        ep = transfer.get_endpoint(endpoint_id)
 
-    transfer_tokens = session['tokens']['transfer.api.globus.org']
+        https_server = ep['https_server']
+        endpoint_uri = https_server + endpoint_path if https_server else None
+        webapp_xfer = 'https://app.globus.org/file-manager?' + \
+            urlencode(dict(origin_id=endpoint_id, origin_path=endpoint_path))
 
-    authorizer = RefreshTokenAuthorizer(
-        transfer_tokens['refresh_token'],
-        load_portal_client(),
-        access_token=transfer_tokens['access_token'],
-        expires_at=transfer_tokens['expires_at_seconds'])
 
-    transfer = TransferClient(authorizer=authorizer)
+        #print("endpintURL == " + endpoint_uri)
 
-    try:
-        transfer.endpoint_autoactivate(endpoint_id)
-        listing = transfer.operation_ls(endpoint_id, path=endpoint_path)
-    except TransferAPIError as err:
-        flash('Error [{}]: {}'.format(err.code, err.message))
-        return redirect(url_for('transfer'))
-
-    file_list = [e for e in listing if e['type'] == 'file']
-
-    ep = transfer.get_endpoint(endpoint_id)
-
-    https_server = ep['https_server']
-    endpoint_uri = https_server + endpoint_path if https_server else None
-    webapp_xfer = 'https://app.globus.org/file-manager?' + \
-        urlencode(dict(origin_id=endpoint_id, origin_path=endpoint_path))
-
-    return render_template('browse.jinja2', endpoint_uri=endpoint_uri,
+        return render_template('browse.jinja2', endpoint_uri=endpoint_uri,
                            target="dataset" if dataset_id else "endpoint",
                            description=(dataset['name'] if dataset_id
                                         else ep['display_name']),
+                           mypath=(dataset['path'] if dataset_id
+                                        else None),
+                           myid=(dataset['id'] if dataset_id
+                                        else None),
                            file_list=file_list, webapp_xfer=webapp_xfer)
+
+    if request.method == 'POST':
+        if not request.form.get('file'):
+            flash('Please select at least one file.')
+            return redirect(url_for('browse'))
+
+        params = {
+            'method': 'POST',
+            'action': url_for('submit_transfer', _external=True,
+                              _scheme='https'),
+            'filelimit': 0,
+            'folderlimit': 1
+        }
+
+        browse_endpoint = 'https://app.globus.org/file-manager?{}' \
+            .format(urlencode(params))
+
+        session['form'] = {
+            'dirselect': False,
+            'datasets': request.form.getlist('file'),
+            'path': request.form.getlist('path'),
+            'id': request.form.getlist('id')
+        }
+
+        return redirect(browse_endpoint)
+
 
 
 @app.route('/transfer', methods=['GET', 'POST'])
@@ -277,6 +312,7 @@ def transfer():
             .format(urlencode(params))
 
         session['form'] = {
+            'dirselect': True,
             'datasets': request.form.getlist('dataset')
         }
 
@@ -294,8 +330,16 @@ def submit_transfer():
     """
     browse_endpoint_form = request.form
 
+    dirselect = session['form']['dirselect']
     selected = session['form']['datasets']
-    filtered_datasets = [ds for ds in datasets if ds['id'] in selected]
+    if dirselect:
+        filtered_datasets = [ds for ds in datasets if ds['id'] in selected]
+    else:
+        path = session['form']['path']
+        myid = session['form']['id']
+        filtered_datasets = [{'name':name, 'path': path, 'id': myid}
+              for name, path, myid in zip(selected, path, myid)
+              ]
 
     transfer_tokens = session['tokens']['transfer.api.globus.org']
 
@@ -318,18 +362,26 @@ def submit_transfer():
                                  label=browse_endpoint_form.get('label'))
 
     for ds in filtered_datasets:
-        source_path = source_endpoint_base + ds['path']
+        print("printing ds")
+        print(ds)
+        if dirselect:
+            source_path = source_endpoint_base + ds['path']
+        else:
+            source_path = source_endpoint_base + ds['path'] + "/" + ds['name']
+
         dest_path = browse_endpoint_form['path']
 
         if destination_folder:
             dest_path += destination_folder + '/'
 
-        #dest_path += 'lsstdesc-dc2-wfd-dr6-v1/' + ds['name'] + '/'
-        dest_path +=  ds['path'] + '/'
+        if dirselect:
+            dest_path +=  ds['path'] + '/'
+        else:
+            dest_path += ds['path'] + '/' + ds['name']
 
         transfer_data.add_item(source_path=source_path,
                                destination_path=dest_path,
-                               recursive=True)
+                               recursive=dirselect)
 
     transfer.endpoint_autoactivate(source_endpoint_id)
     transfer.endpoint_autoactivate(destination_endpoint_id)
