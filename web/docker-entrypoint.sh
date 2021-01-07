@@ -25,6 +25,7 @@ file_env() {
 
 file_env 'GLOBUS_CLIENT_ID' 
 file_env 'GLOBUS_CLIENT_SECRET'
+file_env 'GLOBUS_GLOBAL_SECRET'
 
 exec "$@"
 
